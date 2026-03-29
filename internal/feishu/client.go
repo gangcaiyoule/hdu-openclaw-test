@@ -14,6 +14,7 @@ import (
 	"github.com/hduhelp/hdu-openclaw/internal/config"
 )
 
+// Client 封装当前机器人回复和提醒推送所需的飞书 API。
 type Client struct {
 	appID      string
 	appSecret  string
@@ -24,6 +25,7 @@ type Client struct {
 	expiresAt   time.Time
 }
 
+// NewClient 使用应用凭证创建飞书 API 客户端。
 func NewClient(cfg config.Config) *Client {
 	return &Client{
 		appID:     cfg.FeishuAppID,
@@ -46,6 +48,7 @@ type tenantTokenResponse struct {
 	Expire            int    `json:"expire"`
 }
 
+// getTenantAccessToken 获取并缓存调用飞书开放接口所需的 tenant access token。
 func (c *Client) getTenantAccessToken(ctx context.Context) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -107,6 +110,7 @@ type createMessageResponse struct {
 	Msg  string `json:"msg"`
 }
 
+// SendTextToChat 向指定飞书会话发送一条纯文本消息。
 func (c *Client) SendTextToChat(ctx context.Context, chatID, text string) error {
 	token, err := c.getTenantAccessToken(ctx)
 	if err != nil {

@@ -12,11 +12,13 @@ import (
 	"github.com/hduhelp/hdu-openclaw/internal/config"
 )
 
+// ChatMessage 表示一条 chat-completions 风格的消息。
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
+// Client 封装了一个兼容 OpenAI Chat Completions 的接口客户端。
 type Client struct {
 	baseURL    string
 	apiKey     string
@@ -24,6 +26,7 @@ type Client struct {
 	httpClient *http.Client
 }
 
+// NewClient 根据统一配置创建 LLM 客户端。
 func NewClient(cfg config.Config) *Client {
 	return &Client{
 		baseURL: cfg.LLMBaseURL,
@@ -51,6 +54,7 @@ type chatResponse struct {
 	} `json:"error,omitempty"`
 }
 
+// Chat 发送一次聊天补全请求，并返回第一条文本结果。
 func (c *Client) Chat(ctx context.Context, messages []ChatMessage) (string, error) {
 	payload := chatRequest{
 		Model:       c.model,

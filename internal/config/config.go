@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// Config 汇总 HTTP 服务、飞书客户端、LLM 客户端和调度器所需的全部运行配置。
 type Config struct {
 	AppAddr string
 
@@ -23,9 +24,13 @@ type Config struct {
 	LLMSystemPrompt string
 	LLMTimeout      time.Duration
 
-	ChatHistoryLimit int
+	ChatHistoryLimit   int
+	DatabaseURL        string
+	SchedulerInterval  time.Duration
+	SchedulerBatchSize int
 }
 
+// Load 从进程环境变量读取配置，并在缺失时回退到本地 .env 文件。
 func Load() (Config, error) {
 	loadDotEnv(".env")
 
@@ -40,6 +45,9 @@ func Load() (Config, error) {
 		LLMSystemPrompt:         getEnv("LLM_SYSTEM_PROMPT", "你是杭电龙虾的飞书助手，回答简洁、自然、友好，优先使用中文。"),
 		LLMTimeout:              time.Duration(getEnvInt("LLM_TIMEOUT_SECONDS", 30)) * time.Second,
 		ChatHistoryLimit:        getEnvInt("CHAT_HISTORY_LIMIT", 8),
+		DatabaseURL:             getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/hdu_openclaw?sslmode=disable"),
+		SchedulerInterval:       time.Duration(getEnvInt("SCHEDULER_INTERVAL_SECONDS", 60)) * time.Second,
+		SchedulerBatchSize:      getEnvInt("SCHEDULER_BATCH_SIZE", 20),
 	}
 
 	if cfg.FeishuAppID == "" {
@@ -63,10 +71,20 @@ func Load() (Config, error) {
 	if cfg.ChatHistoryLimit < 0 {
 		return Config{}, fmt.Errorf("CHAT_HISTORY_LIMIT must be >= 0")
 	}
+	if cfg.DatabaseURL == "" {
+		return Config{}, errors.New("DATABASE_URL is required")
+	}
+	if cfg.SchedulerInterval <= 0 {
+		return Config{}, fmt.Errorf("SCHEDULER_INTERVAL_SECONDS must be > 0")
+	}
+	if cfg.SchedulerBatchSize <= 0 {
+		return Config{}, fmt.Errorf("SCHEDULER_BATCH_SIZE must be > 0")
+	}
 
 	return cfg, nil
 }
 
+// loadDotEnv 在进程环境变量缺失时，从本地 .env 文件加载简单的 KEY=VALUE 配置。
 func loadDotEnv(path string) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -96,6 +114,7 @@ func loadDotEnv(path string) {
 	}
 }
 
+// getEnv 返回去除空白后的环境变量值，缺失时使用默认值。
 func getEnv(key, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 		return value
@@ -103,6 +122,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
+// getEnvInt 解析整型环境变量，解析失败时使用默认值。
 func getEnvInt(key string, fallback int) int {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {

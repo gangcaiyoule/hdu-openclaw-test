@@ -11,23 +11,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hduhelp/hdu-openclaw/internal/chat"
+	"github.com/hduhelp/hdu-openclaw/internal/bot"
 	"github.com/hduhelp/hdu-openclaw/internal/config"
 )
 
+// WebhookHandler 负责校验并处理飞书事件回调。
 type WebhookHandler struct {
-	cfg         config.Config
-	chatService *chat.Service
-	feishu      *Client
-	dedup       *eventDeduper
+	cfg        config.Config
+	botService *bot.Service
+	feishu     *Client
+	dedup      *eventDeduper
 }
 
-func NewWebhookHandler(cfg config.Config, chatService *chat.Service, feishuClient *Client) *WebhookHandler {
+// NewWebhookHandler 创建一个用于处理飞书事件的 webhook 处理器。
+func NewWebhookHandler(cfg config.Config, botService *bot.Service, feishuClient *Client) *WebhookHandler {
 	return &WebhookHandler{
-		cfg:         cfg,
-		chatService: chatService,
-		feishu:      feishuClient,
-		dedup:       newEventDeduper(10 * time.Minute),
+		cfg:        cfg,
+		botService: botService,
+		feishu:     feishuClient,
+		dedup:      newEventDeduper(10 * time.Minute),
 	}
 }
 
@@ -69,6 +71,7 @@ type textMessageContent struct {
 	Text string `json:"text"`
 }
 
+// HandleProbe 返回一个简短的 JSON 响应，用于飞书的地址探测。
 func (h *WebhookHandler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 	log.Printf("feishu probe request: method=%s path=%s remote=%s", r.Method, r.URL.Path, r.RemoteAddr)
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -77,6 +80,7 @@ func (h *WebhookHandler) HandleProbe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleEvent 校验飞书事件并分发支持的文本消息。
 func (h *WebhookHandler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -151,6 +155,7 @@ func (h *WebhookHandler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	go h.handleChatEvent(envelope, strings.TrimSpace(content.Text))
 }
 
+// handleChatEvent 执行下游机器人处理流程，并把最终回复发回飞书。
 func (h *WebhookHandler) handleChatEvent(envelope eventEnvelope, text string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -160,7 +165,13 @@ func (h *WebhookHandler) handleChatEvent(envelope eventEnvelope, text string) {
 		sessionID = envelope.Event.Sender.SenderID.OpenID
 	}
 
-	answer, err := h.chatService.Reply(ctx, sessionID, text)
+	answer, err := h.botService.HandleText(ctx, bot.MessageInput{
+		SessionID:      sessionID,
+		Platform:       "feishu",
+		PlatformUserID: envelope.Event.Sender.SenderID.OpenID,
+		ChatID:         envelope.Event.Message.ChatID,
+		Text:           text,
+	})
 	if err != nil {
 		log.Printf("chat service failed: event_id=%s err=%v", envelope.Header.EventID, err)
 		answer = "我刚刚有点忙，请稍后再试。"
@@ -171,18 +182,21 @@ func (h *WebhookHandler) handleChatEvent(envelope eventEnvelope, text string) {
 	}
 }
 
+// writeJSON 以指定状态码写出 JSON 响应。
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// eventDeduper 会短时间记住事件 ID，避免飞书重试造成重复处理。
 type eventDeduper struct {
 	mu    sync.Mutex
 	ttl   time.Duration
 	items map[string]time.Time
 }
 
+// newEventDeduper 创建一个新的内存事件去重器。
 func newEventDeduper(ttl time.Duration) *eventDeduper {
 	return &eventDeduper{
 		ttl:   ttl,
@@ -190,6 +204,7 @@ func newEventDeduper(ttl time.Duration) *eventDeduper {
 	}
 }
 
+// Seen 在事件已于 TTL 窗口内处理过时返回 true。
 func (d *eventDeduper) Seen(eventID string) bool {
 	now := time.Now()
 
