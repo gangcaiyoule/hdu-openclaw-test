@@ -34,7 +34,7 @@ func main() {
 	}
 	defer closeDB(db)
 
-	repo := reminder.NewRepository(db)
+	repo := reminder.NewPostgresRepository(db)
 	if err := repo.EnsureSchema(rootCtx); err != nil {
 		log.Fatalf("ensure reminder schema: %v", err)
 	}
@@ -42,13 +42,14 @@ func main() {
 	llmClient := llm.NewClient(cfg)
 	memory := chat.NewMemoryStore(cfg.ChatHistoryLimit)
 	chatService := chat.NewService(cfg, llmClient, memory)
-	reminderParser := reminder.NewParser(cfg, llmClient)
-	reminderService := reminder.NewService(cfg, repo, reminderParser)
+	reminderParser := reminder.NewParser(llmClient)
+	reminderService := reminder.NewService(repo, reminderParser)
+	reminderComposer := reminder.NewLLMComposer(cfg, llmClient)
 	botService := bot.NewService(chatService, reminderService)
 	feishuClient := feishu.NewClient(cfg)
 	webhookHandler := feishu.NewWebhookHandler(cfg, botService, feishuClient)
 
-	scheduler := reminder.NewScheduler(cfg, repo, feishuClient)
+	scheduler := reminder.NewScheduler(cfg, repo, feishuClient, reminderComposer)
 	go scheduler.Start(rootCtx)
 
 	mux := http.NewServeMux()

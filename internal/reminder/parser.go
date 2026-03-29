@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hduhelp/hdu-openclaw/internal/config"
 	"github.com/hduhelp/hdu-openclaw/internal/llm"
 )
 
@@ -42,21 +41,17 @@ const reminderParserPrompt = `你是提醒任务解析器。
 {"intent":"reminder_create","schedule_type":"daily","remind_text":"背单词","run_at":null,"repeat_time":"22:00","repeat_rule":"daily","timezone":"Asia/Shanghai","parse_success":true,"error_reason":null}`
 
 // Parser 使用配置好的大模型判断一条消息是否应创建提醒。
-type Parser struct {
-	cfg config.Config
+type LLMParser struct {
 	llm *llm.Client
 }
 
 // NewParser 创建一个与主聊天链路共用 LLM 客户端的提醒解析器。
-func NewParser(cfg config.Config, llmClient *llm.Client) *Parser {
-	return &Parser{
-		cfg: cfg,
-		llm: llmClient,
-	}
+func NewParser(llmClient *llm.Client) *LLMParser {
+	return &LLMParser{llm: llmClient}
 }
 
 // Parse 将自然语言消息解析为结构化的提醒意图。
-func (p *Parser) Parse(ctx context.Context, userText string, now time.Time) (ParseResult, error) {
+func (p *LLMParser) Parse(ctx context.Context, userText string, now time.Time) (ParseResult, error) {
 	userPrompt := fmt.Sprintf(`当前时间：%s
 当前时区：Asia/Shanghai
 用户输入：%s
@@ -71,10 +66,10 @@ func (p *Parser) Parse(ctx context.Context, userText string, now time.Time) (Par
 		{Role: "user", Content: userPrompt},
 	})
 	if err != nil {
-		return ParseResult{}, fmt.Errorf("call reminder parser llm: %w", err)
+		return ParseResult{}, fmt.Errorf("调用提醒解析器 LLM: %w", err)
 	}
 
-	log.Printf("reminder parser raw output: input=%q raw=%s", userText, raw)
+	log.Printf("提醒解析器原始输出: input=%q raw=%s", userText, raw)
 
 	clean := strings.TrimSpace(raw)
 	clean = strings.TrimPrefix(clean, "```json")
@@ -84,8 +79,8 @@ func (p *Parser) Parse(ctx context.Context, userText string, now time.Time) (Par
 
 	var parsed ParseResult
 	if err := json.Unmarshal([]byte(clean), &parsed); err != nil {
-		return ParseResult{}, fmt.Errorf("decode reminder parser result: %w; raw=%s", err, clean)
+		return ParseResult{}, fmt.Errorf("解码提醒解析结果: %w; raw=%s", err, clean)
 	}
-	log.Printf("reminder parser parsed result: input=%q intent=%s schedule_type=%s parse_success=%t run_at=%v repeat_time=%v remind_text=%q", userText, parsed.Intent, parsed.ScheduleType, parsed.ParseSuccess, parsed.RunAt, parsed.RepeatTime, parsed.RemindText)
+	log.Printf("提醒解析器解析结果: input=%q intent=%s schedule_type=%s parse_success=%t run_at=%v repeat_time=%v remind_text=%q", userText, parsed.Intent, parsed.ScheduleType, parsed.ParseSuccess, parsed.RunAt, parsed.RepeatTime, parsed.RemindText)
 	return parsed, nil
 }

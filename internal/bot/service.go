@@ -3,7 +3,6 @@ package bot
 import (
 	"context"
 
-	"github.com/hduhelp/hdu-openclaw/internal/chat"
 	"github.com/hduhelp/hdu-openclaw/internal/reminder"
 )
 
@@ -16,14 +15,24 @@ type MessageInput struct {
 	Text           string
 }
 
+// ChatService 定义普通聊天链路需要提供的能力。
+type ChatService interface {
+	Reply(ctx context.Context, sessionID, userText string) (string, error)
+}
+
+// ReminderService 定义提醒链路需要提供的能力。
+type ReminderService interface {
+	TryCreate(ctx context.Context, req reminder.CreateRequest) (bool, string, error)
+}
+
 // Service 负责统一编排提醒创建和普通聊天两条处理链路。
 type Service struct {
-	chat      *chat.Service
-	reminders *reminder.Service
+	chat      ChatService
+	reminders ReminderService
 }
 
 // NewService 创建一个可在提醒与普通聊天之间路由的机器人服务。
-func NewService(chatService *chat.Service, reminderService *reminder.Service) *Service {
+func NewService(chatService ChatService, reminderService ReminderService) *Service {
 	return &Service{
 		chat:      chatService,
 		reminders: reminderService,

@@ -16,16 +16,18 @@ type MessageSender interface {
 // Scheduler 负责周期性扫描到期提醒任务并发送飞书通知。
 type Scheduler struct {
 	cfg        config.Config
-	repository *Repository
+	repository Repository
 	sender     MessageSender
+	composer   Composer
 }
 
 // NewScheduler 创建一个用于提醒投递的调度器。
-func NewScheduler(cfg config.Config, repository *Repository, sender MessageSender) *Scheduler {
+func NewScheduler(cfg config.Config, repository Repository, sender MessageSender, composer Composer) *Scheduler {
 	return &Scheduler{
 		cfg:        cfg,
 		repository: repository,
 		sender:     sender,
+		composer:   composer,
 	}
 }
 
@@ -68,7 +70,7 @@ func (s *Scheduler) runOnce(ctx context.Context) {
 
 // handleTask 处理单条提醒任务，并在发送后更新其调度状态。
 func (s *Scheduler) handleTask(ctx context.Context, task Task) error {
-	message := "提醒你：" + task.RemindText
+	message := s.composer.Compose(ctx, task)
 	if err := s.sender.SendTextToChat(ctx, task.ChatID, message); err != nil {
 		return err
 	}
@@ -81,7 +83,7 @@ func (s *Scheduler) handleTask(ctx context.Context, task Task) error {
 		if task.RepeatTime == nil {
 			return nil
 		}
-		nextRun, err := s.nextDailyRun(now, *task.RepeatTime)
+		nextRun, err := nextDailyRun(now, *task.RepeatTime)
 		if err != nil {
 			return err
 		}
@@ -91,17 +93,7 @@ func (s *Scheduler) handleTask(ctx context.Context, task Task) error {
 	}
 }
 
-// nextDailyRun 计算每日提醒执行后的下一次运行时间。
-func (s *Scheduler) nextDailyRun(now time.Time, repeatTime string) (time.Time, error) {
-	service := &Service{cfg: s.cfg}
-	return service.NextDailyRun(now, repeatTime)
-}
-
 // location 返回调度器使用的时区。
 func (s *Scheduler) location() *time.Location {
-	location, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		return time.FixedZone("CST", 8*3600)
-	}
-	return location
+	return location()
 }

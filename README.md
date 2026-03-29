@@ -11,29 +11,39 @@
 ## 代码结构
 
 ```text
-cmd/server
-  服务入口，启动 HTTP 服务、数据库连接和 reminder scheduler
-
-internal/bot
-  消息编排层，先尝试 reminder，再回落普通聊天
-
-internal/chat
-  普通聊天能力和内存上下文
-
-internal/config
-  环境变量与 .env 配置加载
-
-internal/feishu
-  飞书 webhook 和发送消息能力
-
-internal/llm
-  OpenAI-compatible 大模型客户端
-
-internal/reminder
-  提醒解析、数据库读写、提醒调度
-
-internal/store
-  PostgreSQL 连接初始化
+.
+├── cmd
+│   └── server
+│       └── main.go                # 服务入口，组装 HTTP、数据库、调度器
+├── internal
+│   ├── bot
+│   │   └── service.go             # 消息编排层，先尝试 reminder，再回落普通聊天
+│   ├── chat
+│   │   ├── memory.go              # 内存会话上下文
+│   │   └── service.go             # 普通聊天服务
+│   ├── config
+│   │   └── config.go              # 环境变量与 .env 配置加载
+│   ├── feishu
+│   │   ├── client.go              # 飞书发消息客户端
+│   │   └── webhook.go             # 飞书 webhook 入口
+│   ├── llm
+│   │   └── client.go              # OpenAI-compatible 大模型客户端
+│   ├── reminder
+│   │   ├── composer.go            # 提醒文案生成
+│   │   ├── dto.go                 # 提醒请求/解析结果 DTO
+│   │   ├── entity.go              # 提醒任务实体
+│   │   ├── parser.go              # 提醒意图解析
+│   │   ├── repository.go          # 提醒仓储接口
+│   │   ├── repository_postgres.go # PostgreSQL 仓储实现
+│   │   ├── scheduler.go           # 定时扫描与投递
+│   │   ├── service.go             # 提醒应用服务
+│   │   └── time.go                # 时间解析和调度辅助函数
+│   └── store
+│       └── postgres.go            # PostgreSQL 连接初始化
+├── .env.example
+├── Dockerfile
+├── go.mod
+└── README.md
 ```
 
 ## 启动方式

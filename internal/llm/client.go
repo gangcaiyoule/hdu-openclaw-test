@@ -77,33 +77,33 @@ func (c *Client) Chat(ctx context.Context, messages []ChatMessage) (string, erro
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("send chat request: %w", err)
+		return "", fmt.Errorf("发送聊天请求: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("read chat response: %w", err)
+		return "", fmt.Errorf("读取聊天响应: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("chat api status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return "", fmt.Errorf("聊天 API 状态 %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
 
 	var parsed chatResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return "", fmt.Errorf("decode chat response: %w", err)
+		return "", fmt.Errorf("解码聊天响应: %w", err)
 	}
 	if parsed.Error != nil {
-		return "", fmt.Errorf("chat api error: %s", parsed.Error.Message)
+		return "", fmt.Errorf("聊天 API 错误: %s", parsed.Error.Message)
 	}
 	if len(parsed.Choices) == 0 {
-		return "", fmt.Errorf("chat api returned no choices")
+		return "", fmt.Errorf("聊天 API 返回了空结果")
 	}
 
 	answer := strings.TrimSpace(parsed.Choices[0].Message.Content)
 	if answer == "" {
-		return "", fmt.Errorf("chat api returned empty content")
+		return "", fmt.Errorf("聊天 API 返回了空内容")
 	}
 	return answer, nil
 }
