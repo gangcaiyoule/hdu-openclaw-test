@@ -6,3 +6,5 @@ dist/
 *.exe
 *.log
 *.md
+*.markdown
+!README.md
