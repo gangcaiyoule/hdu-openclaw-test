@@ -1,0 +1,9 @@
+.git
+.idea
+.codex-run
+.env
+bin
+dist
+*.exe
+*.log
+
